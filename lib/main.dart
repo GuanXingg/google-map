@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_map/pages/page_google.dart';
 
 void main() {
   runApp(const MainApp());
@@ -14,9 +15,7 @@ class MainApp extends StatelessWidget {
       initialRoute: '/',
       theme: ThemeData(primarySwatch: Colors.green),
       debugShowCheckedModeBanner: false,
-      home: const Scaffold(
-        body: Center(child: Text('Hello World!')),
-      ),
+      home: const GooglePage(),
     );
   }
 }
