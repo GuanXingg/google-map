@@ -1,0 +1,30 @@
+{
+  "dart.flutterSdkPath": ".fvm/flutter_sdk",
+  "search.exclude": {
+    "**/.fvm": true
+  },
+  "files.watcherExclude": {
+    "**/.fvm": true
+  },
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": true,
+  "editor.trimAutoWhitespace": true,
+  "editor.fontLigatures": true,
+  "editor.quickSuggestions": {
+    "other": "on",
+    "comments": "off",
+    "strings": "off"
+  },
+  "editor.quickSuggestionsDelay": 10,
+  "dart.lineLength": 120,
+  "dart.previewFlutterUiGuides": true,
+  "[dart]": {
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false,
+    "editor.suggest.insertMode": "replace",
+    "editor.defaultFormatter": "Dart-Code.dart-code",
+    "editor.inlayHints.enabled": "offUnlessPressed",
+    "editor.rulers": [120]
+  }
+}
