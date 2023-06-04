@@ -4,12 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../components/google/dialog_settings.dart';
 import '../constants/const_color.dart';
+import '../functions/google/get_all_zone_point.dart';
+import '../functions/google/get_bound_view.dart';
+import '../functions/google/load_zone_data.dart';
+import '../models/model_point.dart';
+import '../models/model_zone.dart';
 import '../utils/current_location.dart';
 import '../utils/custom_logger.dart';
+import '../utils/parse_file_json.dart';
+import '../utils/read_kml_file.dart';
 import '../widgets/circles.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/function_item.dart';
+import '../widgets/markers.dart';
+import '../widgets/polygons.dart';
 
 class GooglePage extends StatefulWidget {
   const GooglePage({super.key});
@@ -27,6 +37,7 @@ class _GooglePageState extends State<GooglePage> {
   final Set<Polygon> polygons = {};
 
   LatLng? _initPos;
+  List<ZoneModel> zoneDataList = [];
 
   void clearShape({bool marker = true, bool circle = true, bool polyline = true, bool polygon = true}) {
     if (marker) markers.clear();
@@ -61,6 +72,35 @@ class _GooglePageState extends State<GooglePage> {
     }
   }
 
+  Future<void> onTapImportZoneData() async {
+    clearShape();
+
+    try {
+      final GoogleMapController controller = await kGgController.future;
+
+      final String rawFile = await readKmlFile();
+      final Map<String, dynamic> file = await parseKml2Json(rawFile);
+      final List<ZoneModel> newZoneDataList = await handleZoneFile(file);
+
+      for (ZoneModel zoneEl in newZoneDataList) {
+        polygons.add(customPolygon('pos-${zoneEl.name}', zoneEl.color, zoneEl.zone));
+        for (PointModel pointEl in zoneEl.pointList) markers.add(customMarker('pos-${pointEl.name}', pointEl.point));
+      }
+
+      List<LatLng> allZonePoint = getAllPointInZone(newZoneDataList);
+      LatLngBounds bounds = getBoundView(allZonePoint);
+      controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 30));
+
+      setState(() {
+        zoneDataList = newZoneDataList;
+        Navigator.pop(context);
+      });
+    } catch (err) {
+      CLogger().error('>>> An occurred while import file KML and load it!!!, log: $err');
+      CAlert.error(context, content: 'Can not import file');
+    }
+  }
+
   @override
   void initState() {
     _loadData();
@@ -74,6 +114,7 @@ class _GooglePageState extends State<GooglePage> {
           ? SpinKitRing(color: AppColor.highlight)
           : Stack(children: [
               _googleMap(),
+              _settingFunction(),
               _mapFunction(),
             ]),
     );
@@ -92,6 +133,20 @@ class _GooglePageState extends State<GooglePage> {
       myLocationButtonEnabled: false,
       zoomControlsEnabled: false,
       mapToolbarEnabled: false,
+    );
+  }
+
+  Positioned _settingFunction() {
+    return Positioned(
+      top: 60,
+      right: 20,
+      child: FunctionItem(
+        onTap: () => showDialog(
+          context: context,
+          builder: (context) => DialogSettings(onTapImportFile: onTapImportZoneData),
+        ),
+        icon: Icons.settings,
+      ),
     );
   }
 
