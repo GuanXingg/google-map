@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:google_map/components/google/speed_dial.dart';
+import 'package:google_map/constants/const_space.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../components/google/dialog_settings.dart';
@@ -117,6 +120,34 @@ class _GooglePageState extends State<GooglePage> {
     }
   }
 
+  Future<void> onTapShowAllArea() async {
+    clearShape();
+
+    if (zoneDataList.isEmpty) {
+      CLogger().error('>>> An occurred while zone data is empty!!!');
+      CAlert.error(context, content: 'Please import file zone KML data first');
+      return;
+    }
+
+    try {
+      final GoogleMapController controller = await kGgController.future;
+
+      for (ZoneModel zoneEl in zoneDataList) {
+        polygons.add(customPolygon('poly-${zoneEl.name}', zoneEl.color, zoneEl.zone));
+        for (PointModel pointEl in zoneEl.pointList) markers.add(customMarker('pos-${pointEl.name}', pointEl.point));
+      }
+
+      List<LatLng> allZonePoint = getAllPointInZone(zoneDataList);
+      LatLngBounds bounds = getBoundView(allZonePoint);
+      controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 30));
+
+      setState(() {});
+    } catch (err) {
+      CLogger().error('>>> An occurred while get all zone data!!!, log: $err');
+      CAlert.error(context, content: 'Can not load all zone available');
+    }
+  }
+
   @override
   void initState() {
     _loadData();
@@ -173,7 +204,13 @@ class _GooglePageState extends State<GooglePage> {
     return Positioned(
       right: 20,
       bottom: 20,
-      child: FunctionItem(onTap: onTapCurrentLocation, size: 60, icon: Icons.near_me),
+      child: Column(children: [
+        FunctionItem(onTap: onTapCurrentLocation, size: 56, icon: Icons.near_me),
+        const SizedBox(height: AppSpace.primary),
+        MapSpeedDial(
+          onTapShowAllZone: onTapShowAllArea,
+        ),
+      ]),
     );
   }
 }
