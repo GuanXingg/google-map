@@ -1,19 +1,23 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:google_map/components/google/speed_dial.dart';
-import 'package:google_map/constants/const_space.dart';
+import 'package:google_map/components/google/dialog_point_in_zone.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:google_maps_routes/google_maps_routes.dart';
 
 import '../components/google/dialog_settings.dart';
+import '../components/google/speed_dial.dart';
 import '../constants/const_color.dart';
+import '../constants/const_space.dart';
+import '../functions/google/check_in_zone.dart';
 import '../functions/google/get_all_zone_point.dart';
 import '../functions/google/get_bound_view.dart';
+import '../functions/google/get_min_distance.dart';
 import '../functions/google/load_zone_data.dart';
 import '../models/model_point.dart';
 import '../models/model_zone.dart';
+import '../utils/calculate_distance.dart';
 import '../utils/current_location.dart';
 import '../utils/custom_logger.dart';
 import '../utils/parse_file_json.dart';
@@ -33,20 +37,28 @@ class GooglePage extends StatefulWidget {
 
 class _GooglePageState extends State<GooglePage> {
   final Completer<GoogleMapController> kGgController = Completer<GoogleMapController>();
+  final MapsRoutes mapRoutes = MapsRoutes();
 
   final Set<Marker> markers = {};
   final Set<Circle> circles = {};
-  final Set<Polyline> polylines = {};
   final Set<Polygon> polygons = {};
+  final List<PointModel> availPointList = [];
 
   LatLng? _initPos;
   List<ZoneModel> zoneDataList = [];
 
-  void clearShape({bool marker = true, bool circle = true, bool polyline = true, bool polygon = true}) {
+  void clearShape({
+    bool marker = true,
+    bool circle = true,
+    bool polyline = true,
+    bool polygon = true,
+    bool availPoint = true,
+  }) {
     if (marker) markers.clear();
     if (circle) circles.clear();
-    if (polyline) polylines.cast();
+    if (polyline) mapRoutes.routes.clear();
     if (polygon) polygons.clear();
+    if (availPoint) availPointList.clear();
   }
 
   Future<void> _loadData() async {
@@ -90,8 +102,8 @@ class _GooglePageState extends State<GooglePage> {
         for (PointModel pointEl in zoneEl.pointList) markers.add(customMarker('pos-${pointEl.name}', pointEl.point));
       }
 
-      List<LatLng> allZonePoint = getAllPointInZone(newZoneDataList);
-      LatLngBounds bounds = getBoundView(allZonePoint);
+      final List<LatLng> allZonePoint = getAllPointZone(newZoneDataList);
+      final LatLngBounds bounds = getBoundView(allZonePoint);
       controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 30));
 
       setState(() {
@@ -134,17 +146,83 @@ class _GooglePageState extends State<GooglePage> {
 
       for (ZoneModel zoneEl in zoneDataList) {
         polygons.add(customPolygon('poly-${zoneEl.name}', zoneEl.color, zoneEl.zone));
-        for (PointModel pointEl in zoneEl.pointList) markers.add(customMarker('pos-${pointEl.name}', pointEl.point));
+        for (PointModel pointEl in zoneEl.pointList)
+          markers.add(customMarker('pos-${pointEl.name}', pointEl.point, title: pointEl.name));
       }
 
-      List<LatLng> allZonePoint = getAllPointInZone(zoneDataList);
-      LatLngBounds bounds = getBoundView(allZonePoint);
+      final List<LatLng> allZonePoint = getAllPointZone(zoneDataList);
+      final LatLngBounds bounds = getBoundView(allZonePoint);
       controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 30));
 
       setState(() {});
     } catch (err) {
       CLogger().error('>>> An occurred while get all zone data!!!, log: $err');
       CAlert.error(context, content: 'Can not load all zone available');
+    }
+  }
+
+  Future<void> onTapGetClosestZone() async {
+    clearShape();
+
+    if (zoneDataList.isEmpty) {
+      CLogger().error('>>> An occurred while zone data is empty!!!');
+      CAlert.error(context, content: 'Please import file zone KML data first');
+      return;
+    }
+
+    try {
+      final GoogleMapController controller = await kGgController.future;
+      final LatLng currentPos = await getCurrentLocation();
+      final List<PointDistance> pointInZoneDistanceList = [];
+
+      int indexClosestZone = checkPointInZone(currentPos, zoneDataList);
+      if (indexClosestZone < 0) {
+        final List<LatLng> allZonePoint = getAllPointZone(zoneDataList);
+        final List<PointDistance> pointZoneDistanceList = [];
+        for (LatLng zonePointEl in allZonePoint) {
+          final PointDistance pointZoneDistanceEl = await calculateDistance(currentPos, zonePointEl);
+          pointZoneDistanceList.add(pointZoneDistanceEl);
+        }
+        PointDistance minPoint = getMinDistance(pointZoneDistanceList);
+        indexClosestZone = checkPointInZone(minPoint.point, zoneDataList);
+      }
+
+      final List<LatLng> allPointInZone = getAllPointInZone(zoneDataList[indexClosestZone]);
+      for (LatLng zonePointEl in allPointInZone) {
+        PointDistance pointZoneDistanceEl = await calculateDistance(currentPos, zonePointEl);
+        pointInZoneDistanceList.add(pointZoneDistanceEl);
+      }
+
+      polygons.add(customPolygon(
+        'poly-${zoneDataList[indexClosestZone].name}',
+        zoneDataList[indexClosestZone].color,
+        zoneDataList[indexClosestZone].zone,
+      ));
+      for (PointModel pointEl in zoneDataList[indexClosestZone].pointList) {
+        availPointList.add(pointEl);
+
+        for (PointDistance pointDisEl in pointInZoneDistanceList) {
+          if (pointDisEl.point.latitude == pointEl.point.latitude &&
+              pointDisEl.point.longitude == pointEl.point.longitude)
+            markers.add(customMarker(
+              'pos-${pointEl.name}',
+              pointEl.point,
+              title: pointEl.name,
+              subTitle: pointDisEl.description,
+            ));
+        }
+      }
+
+      final List<LatLng> boundPoints = [];
+      boundPoints.add(currentPos);
+      for (LatLng zonePoint in zoneDataList[indexClosestZone].zone) boundPoints.add(zonePoint);
+      final LatLngBounds bounds = getBoundView(boundPoints);
+      controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 30));
+
+      setState(() {});
+    } catch (err) {
+      CLogger().error('>>> An occurred while find closest zone!!!, log: $err');
+      CAlert.error(context, content: 'Can not find closest area');
     }
   }
 
@@ -174,7 +252,7 @@ class _GooglePageState extends State<GooglePage> {
       onMapCreated: (controller) => kGgController.complete(controller),
       markers: markers,
       circles: circles,
-      polylines: polylines,
+      polylines: mapRoutes.routes,
       polygons: polygons,
       myLocationEnabled: true,
       myLocationButtonEnabled: false,
@@ -187,16 +265,27 @@ class _GooglePageState extends State<GooglePage> {
     return Positioned(
       top: 60,
       right: 20,
-      child: FunctionItem(
-        onTap: () => showDialog(
-          context: context,
-          builder: (context) => DialogSettings(
-            onTapImportFile: onTapImportZoneData,
-            onTapDeleteFile: onTapClearZoneData,
+      child: Column(children: [
+        FunctionItem(
+          onTap: () => showDialog(
+            context: context,
+            builder: (context) => DialogSettings(
+              onTapImportFile: onTapImportZoneData,
+              onTapDeleteFile: onTapClearZoneData,
+            ),
           ),
+          icon: Icons.settings,
         ),
-        icon: Icons.settings,
-      ),
+        const SizedBox(height: AppSpace.primary),
+        if (availPointList.isNotEmpty)
+          FunctionItem(
+            icon: Icons.location_on_rounded,
+            onTap: () => showDialog(
+              context: context,
+              builder: (context) => DialogPointInZone(pointList: availPointList),
+            ),
+          )
+      ]),
     );
   }
 
@@ -205,10 +294,11 @@ class _GooglePageState extends State<GooglePage> {
       right: 20,
       bottom: 20,
       child: Column(children: [
-        FunctionItem(onTap: onTapCurrentLocation, size: 56, icon: Icons.near_me),
+        FunctionItem(onTap: onTapCurrentLocation, size: 56, icon: Icons.location_searching),
         const SizedBox(height: AppSpace.primary),
         MapSpeedDial(
           onTapShowAllZone: onTapShowAllArea,
+          onTapClosestZone: onTapGetClosestZone,
         ),
       ]),
     );
