@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
+import 'package:google_map/utils/custom_logger.dart';
 import 'package:xml2json/xml2json.dart';
 
 Future<Map<String, dynamic>> parseKml2Json(String rawFile) async {
@@ -7,6 +9,15 @@ Future<Map<String, dynamic>> parseKml2Json(String rawFile) async {
 
   xml2json.parse(rawFile);
   String fileToParker = xml2json.toParker();
-  
+
   return jsonDecode(fileToParker);
+}
+
+Future<Map<String, dynamic>?> parseJsonFileFromAssets(String path) async {
+  try {
+    final String rawFile = await rootBundle.loadString(path);
+    return jsonDecode(rawFile);
+  } catch (_) {
+    return null;
+  }
 }

@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:google_map/constants/const_map.dart';
+import 'package:google_map/functions/google/load_coupon_data.dart';
+import 'package:google_map/models/model_coupon.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_maps_routes/google_maps_routes.dart';
 
@@ -10,6 +12,7 @@ import '../components/google/dialog_point_in_zone.dart';
 import '../components/google/dialog_settings.dart';
 import '../components/google/speed_dial.dart';
 import '../constants/const_color.dart';
+import '../constants/const_map.dart';
 import '../constants/const_space.dart';
 import '../functions/google/check_in_zone.dart';
 import '../functions/google/get_all_zone_point.dart';
@@ -48,6 +51,7 @@ class _GooglePageState extends State<GooglePage> {
   LatLng? availPoint;
   LatLng? _initPos;
   List<ZoneModel> zoneDataList = [];
+  List<CouponModel> couponDataList = [];
 
   void clearShape({
     bool marker = true,
@@ -99,6 +103,10 @@ class _GooglePageState extends State<GooglePage> {
       final Map<String, dynamic> file = await parseKml2Json(rawFile);
       final List<ZoneModel> newZoneDataList = await handleZoneFile(file);
 
+      List<CouponModel> newCouponDataList = [];
+      final Map<String, dynamic>? couponFile = await parseJsonFileFromAssets('assets/data/fake_data.json');
+      if (couponFile != null) newCouponDataList = await handleCouponFile(couponFile);
+
       for (ZoneModel zoneEl in newZoneDataList) {
         polygons.add(customPolygon('pos-${zoneEl.name}', zoneEl.color, zoneEl.zone));
         for (PointModel pointEl in zoneEl.pointList) markers.add(customMarker('pos-${pointEl.name}', pointEl.point));
@@ -110,6 +118,7 @@ class _GooglePageState extends State<GooglePage> {
 
       setState(() {
         zoneDataList = newZoneDataList;
+        couponDataList = newCouponDataList;
         Navigator.pop(context);
       });
     } catch (err) {
@@ -126,6 +135,7 @@ class _GooglePageState extends State<GooglePage> {
 
       setState(() {
         zoneDataList.clear();
+        couponDataList.clear();
         Navigator.popUntil(context, ModalRoute.withName('/'));
       });
     } catch (err) {
@@ -203,7 +213,15 @@ class _GooglePageState extends State<GooglePage> {
 
       pointInZoneDistanceList.sort((a, b) => a.distance.compareTo(b.distance));
       for (PointModel pointEl in zoneDataList[indexClosestZone].pointList) {
-        availPointList.add(pointEl);
+        final List<CouponModel> couponList = [];
+        for (CouponModel couponEl in couponDataList) {
+          if (couponEl.place == pointEl.name) couponList.add(couponEl);
+        }
+
+        if (couponList.isNotEmpty)
+          availPointList.add(PointModel(name: pointEl.name, point: pointEl.point, couponList: couponList));
+        else
+          availPointList.add(pointEl);
 
         for (int i = 0; i < pointInZoneDistanceList.length; i++) {
           if (pointInZoneDistanceList[i].point.latitude == pointEl.point.latitude &&
@@ -321,6 +339,7 @@ class _GooglePageState extends State<GooglePage> {
         if (availPointList.isNotEmpty)
           FunctionItem(
             icon: Icons.location_on_rounded,
+            iconColor: (couponDataList == null) ? null : AppColor.primary,
             onTap: () => showDialog(
               context: context,
               builder: (context) => DialogPointInZone(pointList: availPointList),

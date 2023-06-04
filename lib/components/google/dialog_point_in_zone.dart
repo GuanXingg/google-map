@@ -22,10 +22,11 @@ class DialogPointInZone extends StatelessWidget {
           child: ListView.builder(
             itemCount: pointList.length,
             itemBuilder: (_, index) => ListTile(
-              leading: const Icon(Icons.location_on, size: 30, color: Colors.red),
+              leading: Icon(Icons.location_on,
+                  size: 30, color: (pointList[index].couponList == null) ? Colors.red : AppColor.primary),
               title: Text(pointList[index].name, style: AppText.standard),
               subtitle: Text(
-                'Have 4 coupon',
+                (pointList[index].couponList == null) ? '' : 'Have ${pointList[index].couponList!.length} coupon',
                 style: AppText.label.copyWith(color: AppColor.unActive, fontStyle: FontStyle.italic),
               ),
             ),
