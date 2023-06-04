@@ -10,6 +10,7 @@ Future<List<CouponModel>> handleCouponFile(Map<String, dynamic> rawFile) async {
       'name': el['name'],
       'description': el['description'],
       'place': el['place'],
+      'expired': el['expired'],
     };
     couponDataList.add(CouponModel.fromJson(item));
   }

@@ -15,8 +15,10 @@ dependencies:
   geolocator: ^9.0.2
   google_maps_flutter: ^2.2.8
   google_maps_routes: ^1.1.2
+  intl: ^0.18.1
   point_in_polygon: ^1.0.0
   quickalert: ^1.0.1
+  url_launcher: ^6.1.11
   xml2json: ^5.3.6
 
 dev_dependencies:

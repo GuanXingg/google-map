@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
-import 'package:google_map/utils/custom_logger.dart';
 import 'package:xml2json/xml2json.dart';
 
 Future<Map<String, dynamic>> parseKml2Json(String rawFile) async {

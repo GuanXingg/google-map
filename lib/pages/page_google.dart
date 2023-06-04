@@ -1,10 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:google_map/functions/google/load_coupon_data.dart';
-import 'package:google_map/models/model_coupon.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_maps_routes/google_maps_routes.dart';
 
@@ -18,7 +15,9 @@ import '../functions/google/check_in_zone.dart';
 import '../functions/google/get_all_zone_point.dart';
 import '../functions/google/get_bound_view.dart';
 import '../functions/google/get_min_distance.dart';
+import '../functions/google/load_coupon_data.dart';
 import '../functions/google/load_zone_data.dart';
+import '../models/model_coupon.dart';
 import '../models/model_point.dart';
 import '../models/model_zone.dart';
 import '../utils/calculate_distance.dart';
@@ -48,6 +47,7 @@ class _GooglePageState extends State<GooglePage> {
   final Set<Polygon> polygons = {};
   final List<PointModel> availPointList = [];
 
+  bool hasCouponInZone = false;
   LatLng? availPoint;
   LatLng? _initPos;
   List<ZoneModel> zoneDataList = [];
@@ -187,6 +187,8 @@ class _GooglePageState extends State<GooglePage> {
       final LatLng currentPos = await getCurrentLocation();
       final List<PointDistance> pointInZoneDistanceList = [];
 
+      bool newHasCouponInZone = false;
+
       int indexClosestZone = checkPointInZone(currentPos, zoneDataList);
       if (indexClosestZone < 0) {
         final List<LatLng> allZonePoint = getAllPointZone(zoneDataList);
@@ -218,9 +220,10 @@ class _GooglePageState extends State<GooglePage> {
           if (couponEl.place == pointEl.name) couponList.add(couponEl);
         }
 
-        if (couponList.isNotEmpty)
+        if (couponList.isNotEmpty) {
           availPointList.add(PointModel(name: pointEl.name, point: pointEl.point, couponList: couponList));
-        else
+          if (!newHasCouponInZone) newHasCouponInZone = true;
+        } else
           availPointList.add(pointEl);
 
         for (int i = 0; i < pointInZoneDistanceList.length; i++) {
@@ -253,7 +256,7 @@ class _GooglePageState extends State<GooglePage> {
       final LatLngBounds bounds = getBoundView(boundPoints);
       controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 30));
 
-      setState(() {});
+      setState(() => hasCouponInZone = newHasCouponInZone);
     } catch (err) {
       CLogger().error('>>> An occurred while find closest zone!!!, log: $err');
       CAlert.error(context, content: 'Can not find closest area');
@@ -281,6 +284,18 @@ class _GooglePageState extends State<GooglePage> {
     } catch (err) {
       CLogger().error('>>> An occurred while draw route to destination!!!, log: $err');
       CAlert.error(context, content: 'Can not identify routes to destination');
+    }
+  }
+
+  Future<void> onTapMoveToPlace(LatLng point) async {
+    clearShape(availPoint: false, marker: false, polygon: false, polyline: false);
+    try {
+      final GoogleMapController controller = await kGgController.future;
+      controller.animateCamera(CameraUpdate.newCameraPosition(CameraPosition(target: point, zoom: 16)));
+      setState(() => Navigator.popUntil(context, ModalRoute.withName('/')));
+    } catch (err) {
+      CLogger().error('>>> An occurred while move camera to place!!!, log: $err');
+      CAlert.error(context, content: '>>> Can not move to place');
     }
   }
 
@@ -339,10 +354,10 @@ class _GooglePageState extends State<GooglePage> {
         if (availPointList.isNotEmpty)
           FunctionItem(
             icon: Icons.location_on_rounded,
-            iconColor: (couponDataList == null) ? null : AppColor.primary,
+            iconColor: (hasCouponInZone) ? AppColor.primary : null,
             onTap: () => showDialog(
               context: context,
-              builder: (context) => DialogPointInZone(pointList: availPointList),
+              builder: (context) => DialogPointInZone(pointList: availPointList, onTap: onTapMoveToPlace),
             ),
           )
       ]),
