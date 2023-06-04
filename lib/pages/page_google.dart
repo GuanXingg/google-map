@@ -101,6 +101,22 @@ class _GooglePageState extends State<GooglePage> {
     }
   }
 
+  Future<void> onTapClearZoneData() async {
+    clearShape();
+
+    try {
+      onTapCurrentLocation();
+
+      setState(() {
+        zoneDataList.clear();
+        Navigator.popUntil(context, ModalRoute.withName('/'));
+      });
+    } catch (err) {
+      CLogger().error('>>> An occurred while delete file zone KML!!!, log: $err');
+      CAlert.error(context, content: 'Can not delete file');
+    }
+  }
+
   @override
   void initState() {
     _loadData();
@@ -143,7 +159,10 @@ class _GooglePageState extends State<GooglePage> {
       child: FunctionItem(
         onTap: () => showDialog(
           context: context,
-          builder: (context) => DialogSettings(onTapImportFile: onTapImportZoneData),
+          builder: (context) => DialogSettings(
+            onTapImportFile: onTapImportZoneData,
+            onTapDeleteFile: onTapClearZoneData,
+          ),
         ),
         icon: Icons.settings,
       ),
