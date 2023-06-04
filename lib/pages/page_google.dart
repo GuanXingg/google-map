@@ -2,10 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:google_map/components/google/dialog_point_in_zone.dart';
+import 'package:google_map/constants/const_map.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_maps_routes/google_maps_routes.dart';
 
+import '../components/google/dialog_point_in_zone.dart';
 import '../components/google/dialog_settings.dart';
 import '../components/google/speed_dial.dart';
 import '../constants/const_color.dart';
@@ -44,6 +45,7 @@ class _GooglePageState extends State<GooglePage> {
   final Set<Polygon> polygons = {};
   final List<PointModel> availPointList = [];
 
+  LatLng? availPoint;
   LatLng? _initPos;
   List<ZoneModel> zoneDataList = [];
 
@@ -198,18 +200,32 @@ class _GooglePageState extends State<GooglePage> {
         zoneDataList[indexClosestZone].color,
         zoneDataList[indexClosestZone].zone,
       ));
+
+      pointInZoneDistanceList.sort((a, b) => a.distance.compareTo(b.distance));
       for (PointModel pointEl in zoneDataList[indexClosestZone].pointList) {
         availPointList.add(pointEl);
 
-        for (PointDistance pointDisEl in pointInZoneDistanceList) {
-          if (pointDisEl.point.latitude == pointEl.point.latitude &&
-              pointDisEl.point.longitude == pointEl.point.longitude)
-            markers.add(customMarker(
-              'pos-${pointEl.name}',
-              pointEl.point,
-              title: pointEl.name,
-              subTitle: pointDisEl.description,
-            ));
+        for (int i = 0; i < pointInZoneDistanceList.length; i++) {
+          if (pointInZoneDistanceList[i].point.latitude == pointEl.point.latitude &&
+              pointInZoneDistanceList[i].point.longitude == pointEl.point.longitude) {
+            if (i == 0)
+              markers.add(customMarker(
+                'pos-${pointEl.name}',
+                pointEl.point,
+                title: '${pointEl.name} (Suggest place)',
+                subTitle: pointInZoneDistanceList[i].description,
+                color: BitmapDescriptor.hueGreen,
+                onTap: onTapSelectPlace,
+              ));
+            else
+              markers.add(customMarker(
+                'pos-${pointEl.name}',
+                pointEl.point,
+                title: pointEl.name,
+                subTitle: pointInZoneDistanceList[i].description,
+                onTap: onTapSelectPlace,
+              ));
+          }
         }
       }
 
@@ -223,6 +239,30 @@ class _GooglePageState extends State<GooglePage> {
     } catch (err) {
       CLogger().error('>>> An occurred while find closest zone!!!, log: $err');
       CAlert.error(context, content: 'Can not find closest area');
+    }
+  }
+
+  void onTapSelectPlace(LatLng pos) {
+    setState(() => availPoint = pos);
+  }
+
+  Future<void> onTapDrawRoute() async {
+    clearShape(availPoint: false, marker: false, polygon: false);
+
+    try {
+      if (availPoint == null) throw 'Can not find destination coordinate';
+      final GoogleMapController controller = await kGgController.future;
+
+      final LatLng currentPos = await getCurrentLocation();
+      await mapRoutes.drawRoute([currentPos, availPoint!], '', Colors.blue, AppMap.googleKey);
+
+      final LatLngBounds bounds = getBoundView([currentPos, availPoint!]);
+      controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 100));
+
+      setState(() {});
+    } catch (err) {
+      CLogger().error('>>> An occurred while draw route to destination!!!, log: $err');
+      CAlert.error(context, content: 'Can not identify routes to destination');
     }
   }
 
@@ -256,6 +296,7 @@ class _GooglePageState extends State<GooglePage> {
       polygons: polygons,
       myLocationEnabled: true,
       myLocationButtonEnabled: false,
+      onTap: (_) => setState(() => availPoint = null),
       zoomControlsEnabled: false,
       mapToolbarEnabled: false,
     );
@@ -294,6 +335,16 @@ class _GooglePageState extends State<GooglePage> {
       right: 20,
       bottom: 20,
       child: Column(children: [
+        if (availPoint != null) ...[
+          FunctionItem(
+            onTap: onTapDrawRoute,
+            size: 56,
+            color: Colors.red,
+            iconColor: Colors.white,
+            icon: Icons.directions,
+          ),
+          const SizedBox(height: AppSpace.primary),
+        ],
         FunctionItem(onTap: onTapCurrentLocation, size: 56, icon: Icons.location_searching),
         const SizedBox(height: AppSpace.primary),
         MapSpeedDial(
