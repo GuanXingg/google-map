@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_maps_routes/google_maps_routes.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../components/google/dialog_point_in_zone.dart';
 import '../components/google/dialog_settings.dart';
@@ -70,7 +71,14 @@ class _GooglePageState extends State<GooglePage> {
   Future<void> _loadData() async {
     try {
       final currentPos = await getCurrentLocation();
-      setState(() => _initPos = currentPos);
+      final List<ZoneModel>? newZoneDataList = await firstLoadZoneData();
+      final List<CouponModel>? newCouponDataList = await firstLoadCouponData();
+
+      setState(() {
+        _initPos = currentPos;
+        if (newZoneDataList != null) zoneDataList = newZoneDataList;
+        if (newCouponDataList != null) couponDataList = newCouponDataList;
+      });
     } catch (err) {
       CLogger().error('>>> An occurred while load app resources!!!, log: $err');
       setState(() => _initPos = const LatLng(0, 0));
@@ -131,7 +139,11 @@ class _GooglePageState extends State<GooglePage> {
     clearShape();
 
     try {
+      final SharedPreferences shared = await SharedPreferences.getInstance();
       onTapCurrentLocation();
+
+      await shared.remove('zoneData');
+      await shared.remove('couponData');
 
       setState(() {
         zoneDataList.clear();

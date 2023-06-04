@@ -18,6 +18,7 @@ dependencies:
   intl: ^0.18.1
   point_in_polygon: ^1.0.0
   quickalert: ^1.0.1
+  shared_preferences: ^2.1.1
   url_launcher: ^6.1.11
   xml2json: ^5.3.6
 
